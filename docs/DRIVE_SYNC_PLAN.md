@@ -172,6 +172,10 @@ The Android client ID is also not a secret. The signing private key and any
 keystore passwords are secrets and must remain outside Git and outside the
 app bundle.
 
+Never copy the downloaded `client_secret_*.json` file into this repository or
+upload it to Vercel. This browser-only app needs the public client ID, not the
+JSON file or its client secret.
+
 ### 6. Configure the app without publishing secrets
 
 For the web build, provide only the public client ID at build time:
