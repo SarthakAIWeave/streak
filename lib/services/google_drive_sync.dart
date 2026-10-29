@@ -16,13 +16,16 @@ class GoogleDriveSync {
 
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
   static const fileName = 'streak-sync.json';
+  static var _initialized = false;
 
   static Future<void> initialize() async {
+    if (_initialized) return;
     if (!kIsWeb && !GoogleSignIn.instance.supportsAuthenticate()) return;
     await GoogleSignIn.instance.initialize(
       clientId: kIsWeb ? CloudSyncConfig.googleWebClientId : null,
       serverClientId: kIsWeb ? null : CloudSyncConfig.googleWebClientId,
     );
+    _initialized = true;
   }
 
   static Future<GoogleSignInAccount?> signIn() async {
@@ -38,9 +41,12 @@ class GoogleDriveSync {
   static Future<auth.AuthClient?> _client() async {
     final user = GoogleSignIn.instance.currentUser;
     if (user == null) return null;
-    final authorization = await user.authorizationClient.authorizeScopes(const [
-      scope,
-    ]);
+    var authorization = await user.authorizationClient.authorizationForScopes(
+      const [scope],
+    );
+    authorization ??= await user.authorizationClient.authorizeScopes(
+      const [scope],
+    );
     return authorization.authClient(scopes: const [scope]);
   }
 
