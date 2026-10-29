@@ -17,6 +17,11 @@ class GoogleDriveSync {
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
   static const fileName = 'streak-sync.json';
   static var _initialized = false;
+  static GoogleSignInAccount? _account;
+
+  static GoogleSignInAccount? get account => _account;
+
+  static void setAccount(GoogleSignInAccount? account) => _account = account;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -33,13 +38,18 @@ class GoogleDriveSync {
     if (!GoogleSignIn.instance.supportsAuthenticate()) {
       throw StateError('This platform needs the Google Sign-In button.');
     }
-    return GoogleSignIn.instance.authenticate();
+    final account = await GoogleSignIn.instance.authenticate();
+    _account = account;
+    return account;
   }
 
-  static Future<void> signOut() => GoogleSignIn.instance.signOut();
+  static Future<void> signOut() async {
+    await GoogleSignIn.instance.signOut();
+    _account = null;
+  }
 
   static Future<auth.AuthClient?> _client() async {
-    final user = GoogleSignIn.instance.currentUser;
+    final user = _account;
     if (user == null) return null;
     var authorization = await user.authorizationClient.authorizationForScopes(
       const [scope],

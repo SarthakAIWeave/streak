@@ -14,6 +14,7 @@ import 'package:streak/features/settings/data_folder_actions.dart';
 import 'package:streak/features/settings/pages/about_page.dart';
 import 'package:streak/features/settings/pages/app_style_page.dart';
 import 'package:streak/features/settings/pages/archived_habits_page.dart';
+import 'package:streak/features/settings/pages/google_drive_page.dart';
 import 'package:streak/features/settings/settings_actions.dart';
 import 'package:streak/features/settings/state/settings_controller.dart';
 import 'package:streak/features/settings/widgets/minimal_settings_widgets.dart';
@@ -220,7 +221,11 @@ class _ProfileRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 9),
-                  Icon(LucideIcons.pencil, size: 14, color: context.tokens.muted),
+                  Icon(
+                    LucideIcons.pencil,
+                    size: 14,
+                    color: context.tokens.muted,
+                  ),
                 ],
               ),
             ),
@@ -273,20 +278,20 @@ class _AppearancePage extends StatelessWidget {
               onTap: () => showColorThemeSheet(context),
             ),
             if (settings.colorTheme == null)
-            SoftRow(
-              icon: LucideIcons.palette,
-              title: context.l10n.accent_color,
-              subtitle: context.l10n.accent_color_sub,
-              trailing: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: settings.accentColor,
-                  shape: BoxShape.circle,
+              SoftRow(
+                icon: LucideIcons.palette,
+                title: context.l10n.accent_color,
+                subtitle: context.l10n.accent_color_sub,
+                trailing: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: settings.accentColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
+                onTap: () => showAccentSheet(context),
               ),
-              onTap: () => showAccentSheet(context),
-            ),
             SoftRow(
               icon: LucideIcons.image,
               title: context.l10n.app_background,
@@ -402,7 +407,11 @@ class _PreferencesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsController>();
-    final weekIndex = switch (settings.weekStart) { 6 => 1, 7 => 2, _ => 0 };
+    final weekIndex = switch (settings.weekStart) {
+      6 => 1,
+      7 => 2,
+      _ => 0,
+    };
 
     return MinimalPage(
       title: context.l10n.preferences,
@@ -415,7 +424,10 @@ class _PreferencesPage extends StatelessWidget {
               icon: LucideIcons.languages,
               title: context.l10n.language,
               subtitle: context.l10n.language_sub,
-              value: SettingsActions.languageLabel(context, settings.localeCode),
+              value: SettingsActions.languageLabel(
+                context,
+                settings.localeCode,
+              ),
               onTap: () => showLanguageSheet(context),
             ),
             SoftRow(
@@ -437,8 +449,12 @@ class _PreferencesPage extends StatelessWidget {
                 ],
                 index: weekIndex,
                 onSelected: (i) => SettingsActions.setWeekStart(
-                context,
-                  switch (i) { 1 => 6, 2 => 7, _ => 1 },
+                  context,
+                  switch (i) {
+                    1 => 6,
+                    2 => 7,
+                    _ => 1,
+                  },
                 ),
               ),
             ),
@@ -446,7 +462,9 @@ class _PreferencesPage extends StatelessWidget {
               icon: LucideIcons.moon,
               title: context.l10n.day_start,
               subtitle: context.l10n.day_start_sub,
-              value: SettingsActions.dayStartLabels(context)[settings.dayCutoff],
+              value: SettingsActions.dayStartLabels(
+                context,
+              )[settings.dayCutoff],
               onTap: () => showOptionSheet(
                 context,
                 title: context.l10n.day_start,
@@ -459,8 +477,9 @@ class _PreferencesPage extends StatelessWidget {
               icon: LucideIcons.sparkles,
               title: context.l10n.celebration,
               subtitle: context.l10n.celebration_sub,
-              value: SettingsActions.celebrationLabels(context)[
-                  settings.celebration.index],
+              value: SettingsActions.celebrationLabels(
+                context,
+              )[settings.celebration.index],
               onTap: () => showOptionSheet(
                 context,
                 title: context.l10n.celebration,
@@ -479,8 +498,9 @@ class _PreferencesPage extends StatelessWidget {
               icon: LucideIcons.house,
               title: context.l10n.start_view,
               subtitle: context.l10n.start_view_sub,
-              value:
-                  SettingsActions.startViewLabels(context)[settings.startView],
+              value: SettingsActions.startViewLabels(
+                context,
+              )[settings.startView],
               onTap: () => showOptionSheet(
                 context,
                 title: context.l10n.start_view,
@@ -599,8 +619,9 @@ class _PreferencesPage extends StatelessWidget {
                 icon: LucideIcons.stickyNote,
                 title: context.l10n.todo_style,
                 subtitle: context.l10n.todo_style_sub,
-                value: SettingsActions.todoStyles(context)[
-                    settings.todoPapers ? 1 : 0],
+                value: SettingsActions.todoStyles(
+                  context,
+                )[settings.todoPapers ? 1 : 0],
                 onTap: () => SettingsActions.pickTodoStyle(context),
               ),
             SoftRow(
@@ -685,15 +706,19 @@ class _PreferencesPage extends StatelessWidget {
                 icon: LucideIcons.timer,
                 title: context.l10n.app_lock_delay,
                 subtitle: context.l10n.app_lock_delay_sub,
-                value: SettingsActions.appLockDelayLabels(context)[
-                    SettingsActions.appLockDelayIndex(settings.appLockDelay)],
+                value: SettingsActions.appLockDelayLabels(
+                  context,
+                )[SettingsActions.appLockDelayIndex(settings.appLockDelay)],
                 onTap: () => showOptionSheet(
                   context,
                   title: context.l10n.app_lock_delay,
                   options: SettingsActions.appLockDelayLabels(context),
-                  index: SettingsActions.appLockDelayIndex(settings.appLockDelay),
-                  onSelected: (i) =>
-                      settings.setAppLockDelay(SettingsActions.appLockDelays[i]),
+                  index: SettingsActions.appLockDelayIndex(
+                    settings.appLockDelay,
+                  ),
+                  onSelected: (i) => settings.setAppLockDelay(
+                    SettingsActions.appLockDelays[i],
+                  ),
                 ),
               ),
             if (settings.appLock && hasBiometricLock)
@@ -772,6 +797,12 @@ class _DataPage extends StatelessWidget {
               title: context.l10n.auto_backup,
               subtitle: SettingsActions.autoBackupSubtitle(context),
               onTap: () => SettingsActions.pickAutoBackup(context),
+            ),
+            SoftRow(
+              icon: LucideIcons.cloud,
+              title: 'Google Drive',
+              subtitle: 'Optional cloud sync',
+              onTap: () => AppNavigator.push(const GoogleDrivePage()),
             ),
             if (SettingsActions.canRefresh(context))
               SoftRow(

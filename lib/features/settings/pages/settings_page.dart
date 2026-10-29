@@ -16,6 +16,7 @@ import 'package:streak/features/settings/pages/about_page.dart';
 import 'package:streak/features/settings/pages/app_style_page.dart';
 import 'package:streak/features/settings/pages/archived_habits_page.dart';
 import 'package:streak/features/settings/pages/express_settings_page.dart';
+import 'package:streak/features/settings/pages/google_drive_page.dart';
 import 'package:streak/features/settings/pages/minimal_settings_page.dart';
 import 'package:streak/features/settings/pages/quotes_page.dart';
 import 'package:streak/features/settings/settings_actions.dart';
@@ -108,8 +109,7 @@ class ClassicSettingsPage extends StatelessWidget {
                     icon: LucideIcons.heartHandshake,
                     title: context.l10n.support,
                     subtitle: context.l10n.support_sub,
-                    onTap: () =>
-                        AppNavigator.push(const _ClassicSupportPage()),
+                    onTap: () => AppNavigator.push(const _ClassicSupportPage()),
                   ),
                 ],
               ),
@@ -152,7 +152,10 @@ class _ClassicSection extends StatelessWidget {
         padding: context.pagePadding(16, 8, 16, 24),
         children: [
           Entrance(child: SectionLabel(label)),
-          Entrance(index: 1, child: Card(child: Column(children: children))),
+          Entrance(
+            index: 1,
+            child: Card(child: Column(children: children)),
+          ),
         ],
       ),
     );
@@ -199,14 +202,14 @@ class _ClassicAppearancePage extends StatelessWidget {
         ),
         if (settings.colorTheme == null) settingsDivider(context),
         if (settings.colorTheme == null)
-        PickerRow(
-          icon: LucideIcons.palette,
-          title: context.l10n.accent_color,
-          subtitle: context.l10n.accent_color_sub,
-          value: null,
-          trailing: _AccentDot(color: settings.accentColor),
-          onTap: () => showAccentSheet(context),
-        ),
+          PickerRow(
+            icon: LucideIcons.palette,
+            title: context.l10n.accent_color,
+            subtitle: context.l10n.accent_color_sub,
+            value: null,
+            trailing: _AccentDot(color: settings.accentColor),
+            onTap: () => showAccentSheet(context),
+          ),
         settingsDivider(context),
         PickerRow(
           icon: LucideIcons.image,
@@ -374,7 +377,7 @@ class _ClassicPreferencesPage extends StatelessWidget {
                         _ => 0,
                       },
                       onChanged: (i) => SettingsActions.setWeekStart(
-                context,
+                        context,
                         switch (i) {
                           1 => 6,
                           2 => 7,
@@ -522,7 +525,8 @@ class _ClassicPreferencesPage extends StatelessWidget {
                     trailing: Segmented(
                       options: [context.l10n.off, context.l10n.on],
                       index: settings.vacationAll ? 1 : 0,
-                      onChanged: (i) => SettingsActions.setVacationAll(context, i == 1),
+                      onChanged: (i) =>
+                          SettingsActions.setVacationAll(context, i == 1),
                     ),
                   ),
                 ],
@@ -700,8 +704,9 @@ class _ClassicPreferencesPage extends StatelessWidget {
                       icon: LucideIcons.stickyNote,
                       title: context.l10n.todo_style,
                       subtitle: context.l10n.todo_style_sub,
-                      value: SettingsActions.todoStyles(context)[
-                          settings.todoPapers ? 1 : 0],
+                      value: SettingsActions.todoStyles(
+                        context,
+                      )[settings.todoPapers ? 1 : 0],
                       onTap: () => SettingsActions.pickTodoStyle(context),
                     ),
                   ],
@@ -710,8 +715,9 @@ class _ClassicPreferencesPage extends StatelessWidget {
                     icon: LucideIcons.calendarClock,
                     title: context.l10n.plan_day,
                     subtitle: context.l10n.plan_day_sub,
-                    value: SettingsActions.planOptions(context)[
-                        settings.planChoice],
+                    value: SettingsActions.planOptions(
+                      context,
+                    )[settings.planChoice],
                     onTap: () => SettingsActions.pickPlan(context),
                   ),
                   settingsDivider(context),
@@ -753,9 +759,12 @@ class _ClassicPreferencesPage extends StatelessWidget {
                       icon: LucideIcons.timer,
                       title: context.l10n.app_lock_delay,
                       subtitle: context.l10n.app_lock_delay_sub,
-                      value: SettingsActions.appLockDelayLabels(context)[
-                          SettingsActions.appLockDelayIndex(
-                              settings.appLockDelay)],
+                      value:
+                          SettingsActions.appLockDelayLabels(
+                            context,
+                          )[SettingsActions.appLockDelayIndex(
+                            settings.appLockDelay,
+                          )],
                       onTap: () => showOptionSheet(
                         context,
                         title: context.l10n.app_lock_delay,
@@ -770,14 +779,14 @@ class _ClassicPreferencesPage extends StatelessWidget {
                     ),
                     if (hasBiometricLock) settingsDivider(context),
                     if (hasBiometricLock)
-                    NavRow(
-                      icon: LucideIcons.keyRound,
-                      title: context.l10n.app_lock_method,
-                      value: settings.appLockMode == 1
-                          ? context.l10n.pin_lock
-                          : context.l10n.app_lock_biometric,
-                      onTap: () => SettingsActions.chooseLockMethod(context),
-                    ),
+                      NavRow(
+                        icon: LucideIcons.keyRound,
+                        title: context.l10n.app_lock_method,
+                        value: settings.appLockMode == 1
+                            ? context.l10n.pin_lock
+                            : context.l10n.app_lock_biometric,
+                        onTap: () => SettingsActions.chooseLockMethod(context),
+                      ),
                     if (settings.appLockMode == 1) ...[
                       settingsDivider(context),
                       NavRow(
@@ -834,6 +843,13 @@ class _ClassicDataPage extends StatelessWidget {
           title: context.l10n.auto_backup,
           subtitle: SettingsActions.autoBackupSubtitle(context),
           onTap: () => SettingsActions.pickAutoBackup(context),
+        ),
+        settingsDivider(context),
+        NavRow(
+          icon: LucideIcons.cloud,
+          title: 'Google Drive',
+          subtitle: 'Optional cloud sync',
+          onTap: () => AppNavigator.push(const GoogleDrivePage()),
         ),
         if (SettingsActions.canRefresh(context)) ...[
           settingsDivider(context),
