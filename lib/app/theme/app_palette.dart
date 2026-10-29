@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 class AppPalette {
   const AppPalette._();
 
-  static const brand = Color(0xFF7C3AED);
-  static const brandDark = Color(0xFF5B21B6);
-  static const brandSoft = Color(0xFFA78BFA);
+  static const brand = Color(0xFFF97316);
+  static const brandDark = Color(0xFFC2410C);
+  static const brandSoft = Color(0xFFFDBA74);
 
   static const success = Color(0xFF22C55E);
   static const warning = Color(0xFFF59E0B);

@@ -261,58 +261,167 @@ class _Welcome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return _Page(
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.32),
-                  blurRadius: 36,
-                  offset: const Offset(0, 14),
+    final promises = _Promises(
+      rows: [
+        (LucideIcons.gift, l10n.onb_free_title, l10n.onb_free_body),
+        (LucideIcons.shieldCheck, l10n.onb_private_title, l10n.onb_private_body),
+        (LucideIcons.hardDriveDownload, l10n.onb_yours_title, l10n.onb_yours_body),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final intro = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.32),
+                    blurRadius: 36,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(26),
+                child: Image.asset('assets/icon.png', width: 92, height: 92),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(l10n.onb_kicker.toUpperCase(), style: _kicker(context)),
+            const SizedBox(height: 6),
+            Text(
+              'Streak',
+              style: TextStyle(
+                fontSize: wide ? 64 : 46,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.8,
+                color: context.colors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Text(
+                l10n.onb_blurb,
+                style: TextStyle(
+                  fontSize: 16,
+                  height: 1.55,
+                  color: context.tokens.muted,
                 ),
+              ),
+            ),
+          ],
+        );
+
+        if (!wide) {
+          return _Page(children: [intro, const SizedBox(height: 26), promises]);
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(56, 24, 56, 20),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(flex: 5, child: Entrance(index: 0, child: intro)),
+                  const SizedBox(width: 72),
+                  Expanded(
+                    flex: 4,
+                    child: Entrance(
+                      index: 1,
+                      child: Column(
+                        children: [
+                          _WelcomePreview(accent: accent),
+                          const SizedBox(height: 18),
+                          promises,
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _WelcomePreview extends StatelessWidget {
+  const _WelcomePreview({required this.accent});
+
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceContainerHighest.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.flame, color: accent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Your rhythm, made visible',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 116,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final (index, factor) in [0.34, 0.55, 0.46, 0.72, 0.64, 0.9, 1.0].indexed) ...[
+                  if (index > 0) const SizedBox(width: 9),
+                  Expanded(
+                    child: FractionallySizedBox(
+                      heightFactor: factor,
+                      alignment: Alignment.bottomCenter,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.22 + index * 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(26),
-              child: Image.asset('assets/icon.png', width: 92, height: 92),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Small daily check-ins compound into something you can see.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: context.tokens.muted,
             ),
           ),
-        ),
-        const SizedBox(height: 28),
-        Text(l10n.onb_kicker.toUpperCase(), style: _kicker(context)),
-        const SizedBox(height: 6),
-        Text(
-          'Streak',
-          style: TextStyle(
-            fontSize: 46,
-            height: 1,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.2,
-            color: context.colors.onSurface,
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          l10n.onb_blurb,
-          style: TextStyle(
-            fontSize: 15.5,
-            height: 1.5,
-            color: context.tokens.muted,
-          ),
-        ),
-        const SizedBox(height: 26),
-        _Promises(
-          rows: [
-            (LucideIcons.gift, l10n.onb_free_title, l10n.onb_free_body),
-            (LucideIcons.shieldCheck, l10n.onb_private_title, l10n.onb_private_body),
-            (LucideIcons.hardDriveDownload, l10n.onb_yours_title, l10n.onb_yours_body),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
