@@ -50,12 +50,57 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
 
   Future<void> _sync() async {
     await _run(() async {
-      final merged = await GoogleDriveSync.pullAndMerge();
-      await GoogleDriveSync.upload();
+      var passphrase = await GoogleDriveSync.savedPassphrase();
+      if (passphrase == null && mounted) {
+        passphrase = await _askPassphrase(context);
+        if (passphrase == null) return;
+        await GoogleDriveSync.savePassphrase(passphrase);
+      }
+      if (passphrase == null) return;
+      final merged = await GoogleDriveSync.pullAndMerge(passphrase: passphrase);
+      await GoogleDriveSync.upload(passphrase: passphrase);
+      GoogleDriveSync.startAutoSync();
       if (mounted) {
         setState(() => _message = 'Sync complete. $merged changes merged.');
       }
     });
+  }
+
+  Future<String?> _askPassphrase(BuildContext context) async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Protect Drive sync'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          obscureText: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Sync passphrase',
+            helperText: 'Use the same passphrase on every device.',
+          ),
+          onSubmitted: (_) => Navigator.of(context).pop(controller.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.length < 12) return;
+              Navigator.of(context).pop(value);
+            },
+            child: const Text('Use passphrase'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return value;
   }
 
   Future<void> _disconnect() async {
@@ -103,7 +148,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                   const SizedBox(height: 8),
                   Text(
                     user == null
-                        ? 'Connect Drive for optional sync. Encrypted sync will be enabled before data upload.'
+                        ? 'Connect Drive for optional sync. Your data is encrypted before upload.'
                         : user.email,
                   ),
                   const SizedBox(height: 20),
@@ -129,7 +174,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                             ? 'Syncing…'
                             : GoogleDriveSync.encryptionReady
                             ? 'Sync now'
-                            : 'Sync pending encryption',
+                            : 'Sync unavailable',
                       ),
                     ),
                     TextButton.icon(
@@ -149,7 +194,8 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
           const SizedBox(height: 16),
           const Text(
             'Streak requests access only to its own hidden Drive app data. '
-            'End-to-end encryption is required before any progress is uploaded. '
+            'Your progress is encrypted on this device before upload. Keep your '
+            'sync passphrase safe; Google cannot recover it. '
             'You can keep using the app offline without signing in.',
           ),
         ],

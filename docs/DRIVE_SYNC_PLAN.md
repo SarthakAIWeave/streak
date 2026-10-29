@@ -52,11 +52,10 @@ same versioned Streak payload and merge rules.
 - **Request only `drive.appdata`.** This keeps the sync file in Drive's hidden
   application-data area and avoids access to the user's normal Drive files.
   A hidden app-data file is not the same thing as end-to-end encryption.
-- **Encrypt before upload for strong privacy.** Before production release,
-  add client-side authenticated encryption for the sync payload. The key must
-  not be stored in Drive or derived from a public client ID. The recovery-key
-  trade-off will be shown clearly: losing the key means the encrypted cloud
-  copy cannot be recovered.
+- **Encrypt before upload for strong privacy.** The implementation uses
+  AES-GCM with a PBKDF2-derived key from the user's sync passphrase. The
+  passphrase is kept in the platform secure store, is never uploaded, and
+  cannot be recovered by Google if lost.
 - **Treat remote data as untrusted.** Validate format/version/size before
   parsing, merge only through the existing engine, keep a local recovery copy,
   and never replace local data after a failed or partial download.

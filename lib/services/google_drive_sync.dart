@@ -9,6 +9,8 @@ import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sig
 import 'package:streak/services/backup_service.dart';
 import 'package:streak/services/cloud_sync_config.dart';
 import 'package:streak/services/cloud_sync_envelope.dart';
+import 'package:streak/services/cloud_sync_encryption.dart';
+import 'package:streak/core/database/local_store.dart';
 import 'package:streak/services/folder_sync.dart';
 
 class GoogleDriveSync {
@@ -16,13 +18,20 @@ class GoogleDriveSync {
 
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
   static const fileName = 'streak-sync.json';
-  static const encryptionReady = false;
+  static const encryptionReady = true;
   static var _initialized = false;
   static GoogleSignInAccount? _account;
+  static Timer? _autoTimer;
+  static Timer? _periodicTimer;
+  static bool _autoBusy = false;
+  static bool _autoStarted = false;
 
   static GoogleSignInAccount? get account => _account;
 
-  static void setAccount(GoogleSignInAccount? account) => _account = account;
+  static void setAccount(GoogleSignInAccount? account) {
+    _account = account;
+    if (account == null) stopAutoSync();
+  }
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -46,7 +55,46 @@ class GoogleDriveSync {
 
   static Future<void> signOut() async {
     await GoogleSignIn.instance.signOut();
+    stopAutoSync();
     _account = null;
+  }
+
+  static void startAutoSync() {
+    if (_autoStarted) return;
+    _autoStarted = true;
+    LocalStore.addChangeListener(_changed);
+    _periodicTimer = Timer.periodic(const Duration(minutes: 2), (_) => _runAuto());
+  }
+
+  static void stopAutoSync() {
+    if (!_autoStarted) return;
+    _autoStarted = false;
+    LocalStore.removeChangeListener(_changed);
+    _autoTimer?.cancel();
+    _periodicTimer?.cancel();
+    _autoTimer = null;
+    _periodicTimer = null;
+  }
+
+  static void _changed() {
+    if (!_autoStarted || _account == null) return;
+    _autoTimer?.cancel();
+    _autoTimer = Timer(const Duration(seconds: 15), _runAuto);
+  }
+
+  static Future<void> _runAuto() async {
+    if (_autoBusy || _account == null) return;
+    final passphrase = await savedPassphrase();
+    if (passphrase == null) return;
+    _autoBusy = true;
+    try {
+      await pullAndMerge(passphrase: passphrase);
+      await upload(passphrase: passphrase);
+    } catch (_) {
+      // Manual sync remains available when the network returns.
+    } finally {
+      _autoBusy = false;
+    }
   }
 
   static Future<auth.AuthClient?> _client() async {
@@ -91,15 +139,13 @@ class GoogleDriveSync {
     return utf8.decode(bytes);
   }
 
-  static Future<void> upload() async {
-    if (!encryptionReady) {
-      throw StateError(
-        'Encrypted Drive sync is not enabled yet; local data was not uploaded.',
-      );
-    }
+  static Future<void> upload({required String passphrase}) async {
     final api = await _api();
     if (api == null) throw StateError('Google Drive is not connected.');
-    final payload = BackupService.cloudJson();
+    final payload = await CloudSyncEncryption.encrypt(
+      BackupService.cloudJson(),
+      passphrase,
+    );
     final existing = await api.files.list(
       spaces: 'appDataFolder',
       q: "name = '$fileName' and trashed = false",
@@ -123,10 +169,17 @@ class GoogleDriveSync {
     }
   }
 
-  static Future<int> pullAndMerge() async {
+  static Future<int> pullAndMerge({required String passphrase}) async {
     final raw = await download();
     if (raw == null) return 0;
-    final decoded = CloudSyncEnvelope.decode(raw);
+    final decrypted = await CloudSyncEncryption.decrypt(raw, passphrase);
+    final decoded = CloudSyncEnvelope.decode(decrypted);
     return FolderSync.absorb(BackupService.parse(json.encode(decoded)));
   }
+
+  static Future<String?> savedPassphrase() =>
+      CloudSyncEncryption.savedPassphrase();
+
+  static Future<void> savePassphrase(String passphrase) =>
+      CloudSyncEncryption.savePassphrase(passphrase);
 }

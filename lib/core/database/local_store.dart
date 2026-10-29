@@ -45,6 +45,7 @@ class LocalStore {
   static bool get isWriting => _writing > 0;
 
   static void Function()? onChanged;
+  static final _changeListeners = <void Function()>{};
   static Map<String, int>? _changes;
   static Map<String, int>? _deleted;
   static Map<String, int>? _cleared;
@@ -110,7 +111,7 @@ class LocalStore {
       await _settings.put(_changesKey, Map<String, int>.of(changes));
       if (revived) await _settings.put(_deletedKey, Map<String, int>.of(deleted));
     }
-    onChanged?.call();
+    _notifyChanged();
   }
 
   static Future<void> _removed(Iterable<String> ids) async {
@@ -124,7 +125,20 @@ class LocalStore {
       await _settings.put(_deletedKey, Map<String, int>.of(deleted));
       await _settings.put(_changesKey, Map<String, int>.of(changes));
     }
+    _notifyChanged();
+  }
+
+  static void addChangeListener(void Function() listener) =>
+      _changeListeners.add(listener);
+
+  static void removeChangeListener(void Function() listener) =>
+      _changeListeners.remove(listener);
+
+  static void _notifyChanged() {
     onChanged?.call();
+    for (final listener in List<void Function()>.of(_changeListeners)) {
+      listener();
+    }
   }
 
   static Future<T> quietly<T>(Future<T> Function() action) =>
