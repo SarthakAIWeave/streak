@@ -103,7 +103,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                   const SizedBox(height: 8),
                   Text(
                     user == null
-                        ? 'Keep an optional encrypted-ready sync copy in your private Streak app data.'
+                        ? 'Connect Drive for optional sync. Encrypted sync will be enabled before data upload.'
                         : user.email,
                   ),
                   const SizedBox(height: 20),
@@ -120,9 +120,17 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                     ),
                   if (user != null) ...[
                     FilledButton.icon(
-                      onPressed: _busy ? null : _sync,
+                      onPressed: _busy || !GoogleDriveSync.encryptionReady
+                          ? null
+                          : _sync,
                       icon: const Icon(LucideIcons.refreshCw),
-                      label: Text(_busy ? 'Syncing…' : 'Sync now'),
+                      label: Text(
+                        _busy
+                            ? 'Syncing…'
+                            : GoogleDriveSync.encryptionReady
+                            ? 'Sync now'
+                            : 'Sync pending encryption',
+                      ),
                     ),
                     TextButton.icon(
                       onPressed: _busy ? null : _disconnect,
@@ -141,6 +149,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
           const SizedBox(height: 16),
           const Text(
             'Streak requests access only to its own hidden Drive app data. '
+            'End-to-end encryption is required before any progress is uploaded. '
             'You can keep using the app offline without signing in.',
           ),
         ],

@@ -16,6 +16,7 @@ class GoogleDriveSync {
 
   static const scope = 'https://www.googleapis.com/auth/drive.appdata';
   static const fileName = 'streak-sync.json';
+  static const encryptionReady = false;
   static var _initialized = false;
   static GoogleSignInAccount? _account;
 
@@ -91,6 +92,11 @@ class GoogleDriveSync {
   }
 
   static Future<void> upload() async {
+    if (!encryptionReady) {
+      throw StateError(
+        'Encrypted Drive sync is not enabled yet; local data was not uploaded.',
+      );
+    }
     final api = await _api();
     if (api == null) throw StateError('Google Drive is not connected.');
     final payload = BackupService.cloudJson();
