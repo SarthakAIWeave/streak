@@ -1,0 +1,9 @@
+{
+  "name": "Streak",
+  "short_name": "Streak",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0D0D0D",
+  "theme_color": "#0D0D0D",
+  "description": "A private, offline habit tracker."
+}
