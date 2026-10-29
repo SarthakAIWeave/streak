@@ -51,14 +51,16 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
   Future<void> _sync() async {
     await _run(() async {
       var passphrase = await GoogleDriveSync.savedPassphrase();
+      var newPassphrase = false;
       if (passphrase == null && mounted) {
         passphrase = await _askPassphrase(context);
         if (passphrase == null) return;
-        await GoogleDriveSync.savePassphrase(passphrase);
+        newPassphrase = true;
       }
       if (passphrase == null) return;
       final merged = await GoogleDriveSync.pullAndMerge(passphrase: passphrase);
       await GoogleDriveSync.upload(passphrase: passphrase);
+      if (newPassphrase) await GoogleDriveSync.savePassphrase(passphrase);
       GoogleDriveSync.startAutoSync();
       if (mounted) {
         setState(() => _message = 'Sync complete. $merged changes merged.');
@@ -81,7 +83,10 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
             labelText: 'Sync passphrase',
             helperText: 'Use the same passphrase on every device.',
           ),
-          onSubmitted: (_) => Navigator.of(context).pop(controller.text),
+          onSubmitted: (_) {
+            final value = controller.text.trim();
+            if (value.length >= 12) Navigator.of(context).pop(value);
+          },
         ),
         actions: [
           TextButton(
