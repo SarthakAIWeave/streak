@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         applicationId = "com.streak.app"
-        minSdk = 28
+        minSdk = 27
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
