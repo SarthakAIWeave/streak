@@ -1,5 +1,6 @@
 import 'package:universal_io/universal_io.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -50,16 +51,16 @@ class StreakApp extends StatelessWidget {
               ? media
               : media.copyWith(disableAnimations: true),
           child: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: AppTheme.systemBars(Theme.of(context).brightness),
-          child: AppLockGate(
-            child: AppBackground(
-              child: _DesktopFrame(
-                shell: settings.onboardingDone,
-                child: child ?? const SizedBox.shrink(),
+            value: AppTheme.systemBars(Theme.of(context).brightness),
+            child: AppLockGate(
+              child: AppBackground(
+                child: _DesktopFrame(
+                  shell: settings.onboardingDone,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),
-        ),
         );
       },
       locale: settings.locale,
@@ -86,7 +87,9 @@ class _DesktopFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid || (shell && hasSideRail(context))) return child;
+    if (kIsWeb || Platform.isAndroid || (shell && hasSideRail(context))) {
+      return child;
+    }
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: phoneWidth),
