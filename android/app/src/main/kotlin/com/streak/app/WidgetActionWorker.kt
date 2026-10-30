@@ -38,9 +38,14 @@ class WidgetActionWorker(
                             if (call.method == "done") done.complete(Unit)
                             result.success(null)
                         }
+                    val loader = FlutterInjector.instance().flutterLoader()
+                    if (!loader.initialized()) {
+                        loader.startInitialization(context)
+                        loader.ensureInitializationComplete(context, null)
+                    }
                     created.dartExecutor.executeDartEntrypoint(
                         DartExecutor.DartEntrypoint(
-                            FlutterInjector.instance().flutterLoader().findAppBundlePath(),
+                            loader.findAppBundlePath(),
                             ENTRYPOINT,
                         )
                     )

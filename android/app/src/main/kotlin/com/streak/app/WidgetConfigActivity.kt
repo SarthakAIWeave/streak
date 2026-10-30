@@ -139,7 +139,8 @@ class WidgetConfigActivity : ComponentActivity() {
         }
 
         providerClass = if (kind != null) "" else providerOf(appWidgetId)
-        type = WType.entries[WidgetConfig.KINDS.indexOf(kind ?: WidgetConfig.kindOf(providerClass))]
+        val kindIndex = WidgetConfig.KINDS.indexOf(kind ?: WidgetConfig.kindOf(providerClass)).coerceAtLeast(0)
+        type = WType.entries[kindIndex.coerceIn(0, WType.entries.size - 1)]
 
         originalImage = WidgetConfig.image(this, appWidgetId)
         imageState.value = originalImage

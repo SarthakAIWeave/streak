@@ -9,11 +9,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -21,7 +16,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
@@ -93,12 +87,10 @@ class FocusService : Service() {
         val anchor = state.optLong("anchor")
         val countDown = state.optBoolean("countDown")
         if (countDown && anchor <= now) return
-        if (Build.VERSION.SDK_INT < 36) {
-            if (countDown) main.postDelayed(tick, anchor - now + 15L)
-            return
+        if (countDown) {
+            val delay = (anchor - now + 15L).coerceAtLeast(0L)
+            main.postDelayed(tick, delay)
         }
-        val phase = (if (countDown) anchor - now else now - anchor).mod(1000L)
-        main.postDelayed(tick, (if (countDown) phase else 1000L - phase) + 15L)
     }
 
     private fun wake(state: JSONObject) {
@@ -124,10 +116,12 @@ class FocusService : Service() {
         val title = state.optString("endTitle")
         if (title.isEmpty()) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(END_CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(END_CHANNEL_ID, "Habit Reminders", NotificationManager.IMPORTANCE_HIGH),
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (manager.getNotificationChannel(END_CHANNEL_ID) == null) {
+                manager.createNotificationChannel(
+                    NotificationChannel(END_CHANNEL_ID, "Habit Reminders", NotificationManager.IMPORTANCE_HIGH),
+                )
+            }
         }
         manager.notify(
             END_ID,
@@ -157,15 +151,17 @@ class FocusService : Service() {
 
     private fun settle() {
         try {
-            val manager = getSystemService(NotificationManager::class.java)
-            if (manager?.getNotificationChannel(CHANNEL_ID) == null) ensureChannel("")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val manager = getSystemService(NotificationManager::class.java)
+                if (manager?.getNotificationChannel(CHANNEL_ID) == null) ensureChannel("")
+            }
             enterForeground(
                 NotificationCompat.Builder(this, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_notify)
                     .setSilent(true)
                     .build(),
             )
-        } catch (e: Exception) {
+        } catch (_: Exception) {
         }
         stop()
     }
@@ -178,8 +174,11 @@ class FocusService : Service() {
     }
 
     private fun ensureChannel(name: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        LEGACY_CHANNEL_IDS.forEach(manager::deleteNotificationChannel)
+        LEGACY_CHANNEL_IDS.forEach { id ->
+            try { manager.deleteNotificationChannel(id) } catch (_: Exception) {}
+        }
         val label = name.ifEmpty { "Focus" }
         val channel = NotificationChannel(CHANNEL_ID, label, NotificationManager.IMPORTANCE_DEFAULT)
         channel.setShowBadge(false)
@@ -189,7 +188,6 @@ class FocusService : Service() {
     }
 
     private fun build(state: JSONObject): Notification {
-        if (Build.VERSION.SDK_INT >= 36) return live(state)
         val countDown = state.optBoolean("countDown")
         val seconds = FocusState.seconds(state)
         val ended = state.optBoolean("running") && countDown && seconds == 0
@@ -244,57 +242,6 @@ class FocusService : Service() {
         return builder.build()
     }
 
-    @RequiresApi(36)
-    private fun live(state: JSONObject): Notification {
-        val running = state.optBoolean("running")
-        val countDown = state.optBoolean("countDown")
-        val seconds = FocusState.seconds(state)
-        val total = state.optInt("total")
-        val ended = running && countDown && seconds == 0
-        val done = state.optBoolean("done") || ended
-        val accent = getColor(colorFor(if (done) PHASE_DONE else state.optString("phase")))
-        val timed = countDown && total > 0
-        val elapsed = if (timed) (total - seconds).coerceIn(0, total) else seconds
-        val time = clock(seconds)
-
-        val style = Notification.ProgressStyle()
-            .setStyledByProgress(true)
-            .setProgressTrackerIcon(Icon.createWithBitmap(knob(accent)))
-        if (timed) {
-            style.setProgressSegments(listOf(Notification.ProgressStyle.Segment(total).setColor(accent)))
-            style.setProgress(elapsed)
-        } else {
-            style.setProgressIndeterminate(running)
-        }
-
-        val builder = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_notify)
-            .setContentTitle(state.optString("title"))
-            .setContentText(state.optString(if (ended) "endTitle" else "state"))
-            .setLargeIcon(Icon.createWithBitmap(stamp(time, accent)))
-            .setStyle(style)
-            .setColor(accent)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setCategory(Notification.CATEGORY_STOPWATCH)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .setContentIntent(open())
-            .setShortCriticalText(if (done) "✓" else time)
-        builder.extras.putBoolean(PROMOTED, true)
-
-        for (button in buttons(state, running, done)) {
-            builder.addAction(
-                Notification.Action.Builder(
-                    Icon.createWithResource(this, button.icon),
-                    button.label,
-                    action(button.action, button.request),
-                ).build(),
-            )
-        }
-        return builder.build()
-    }
-
     private fun buttons(state: JSONObject, running: Boolean, done: Boolean): List<Button> {
         val timed = state.optBoolean("countDown")
         val pause = Button(R.drawable.ic_focus_pause, state.optString("pauseLabel"), ACTION_PAUSE, REQUEST_TOGGLE)
@@ -326,40 +273,6 @@ class FocusService : Service() {
             open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-    }
-
-    private fun stamp(time: String, accent: Int): Bitmap {
-        val width = 440
-        val height = 210
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = accent
-        paint.typeface = Typeface.create(Typeface.DEFAULT, 900, false)
-        paint.fontFeatureSettings = "tnum"
-        paint.textAlign = Paint.Align.CENTER
-        paint.textSize = height * 0.84f
-        val room = width * 0.68f
-        val measured = paint.measureText(time)
-        if (measured > room) paint.textSize *= room / measured
-        val metrics = paint.fontMetrics
-        canvas.drawText(
-            time,
-            width / 2f,
-            height * 0.54f - (metrics.ascent + metrics.descent) / 2f,
-            paint,
-        )
-        return bitmap
-    }
-
-    private fun knob(accent: Int): Bitmap {
-        val size = 96
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = accent
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-        return bitmap
     }
 
     private data class Button(val icon: Int, val label: String, val action: String, val request: Int)
@@ -416,8 +329,6 @@ class FocusService : Service() {
         private const val END_CHANNEL_ID = "habit_reminders"
         private const val END_ID = -987654
 
-        private const val PROMOTED = "android.requestPromotedOngoing"
-
         fun show(context: Context, state: JSONObject) {
             FocusState.save(context, state)
             val intent = Intent(context, FocusService::class.java).setAction(ACTION_SHOW)
@@ -431,9 +342,8 @@ class FocusService : Service() {
         fun hide(context: Context) {
             FocusState.clear(context)
             try {
-                context.startService(Intent(context, FocusService::class.java).setAction(ACTION_HIDE))
-            } catch (e: Exception) {
                 context.stopService(Intent(context, FocusService::class.java))
+            } catch (_: Exception) {
             }
             context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
         }
