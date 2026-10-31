@@ -39,6 +39,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Accept Android SDK licenses
+        run: |
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          set -o pipefail
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -114,6 +120,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Accept Android SDK licenses
+        run: |
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          set -o pipefail
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
