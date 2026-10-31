@@ -39,6 +39,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Find Android NDK version
+        id: ndk
+        run: |
+          version=$(awk -F'"' '/^[[:space:]]*ndkVersion = "/ {print $2; exit}' android/app/build.gradle.kts)
+          test -n "$version" || { echo 'NDK version not found' >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "path=$ANDROID_HOME/ndk/$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.ndk.outputs.path }}
+          key: ${{ runner.os }}-android-ndk-${{ steps.ndk.outputs.version }}
+
       - name: Accept Android SDK licenses
         run: |
           set +o pipefail
@@ -120,6 +139,25 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Find Android NDK version
+        id: ndk
+        run: |
+          version=$(awk -F'"' '/^[[:space:]]*ndkVersion = "/ {print $2; exit}' android/app/build.gradle.kts)
+          test -n "$version" || { echo 'NDK version not found' >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "path=$ANDROID_HOME/ndk/$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.ndk.outputs.path }}
+          key: ${{ runner.os }}-android-ndk-${{ steps.ndk.outputs.version }}
 
       - name: Accept Android SDK licenses
         run: |
