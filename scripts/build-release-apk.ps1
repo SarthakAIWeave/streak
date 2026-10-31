@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$signingDir = Join-Path $env:USERPROFILE '.streak-signing'
+$signingDir = Join-Path $projectRoot '.streak-signing'
 $signingJson = Join-Path $signingDir 'github-actions-secrets.json'
 $keystore = Join-Path $signingDir 'streak-release.jks'
 $propertiesPath = Join-Path $projectRoot 'android\key.properties'
