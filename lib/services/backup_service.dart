@@ -307,7 +307,36 @@ class BackupService {
     }
   }
 
-  static BackupData parse(String raw) {
+  /// Cloud snapshots may be empty, but must not silently discard bad records.
+  static BackupData parseCloud(String raw) {
+    final root = CloudSyncEnvelope.decode(raw);
+    for (final key in ['categories', 'notes', 'focus', 'todos', 'todoTags']) {
+      if (root.containsKey(key) && root[key] is! List) {
+        throw FormatException('Invalid cloud sync field: $key');
+      }
+    }
+    for (final key in ['settings', 'changes', 'deleted', 'cleared']) {
+      if (root.containsKey(key) && root[key] is! Map) {
+        throw FormatException('Invalid cloud sync field: $key');
+      }
+    }
+    for (final key in ['changes', 'deleted', 'cleared']) {
+      final stamps = root[key];
+      if (stamps is Map &&
+          stamps.entries.any(
+            (entry) => entry.key is! String || entry.value is! int,
+          )) {
+        throw FormatException('Invalid cloud sync timestamps: $key');
+      }
+    }
+    final data = parse(json.encode(root), allowEmpty: true);
+    if (data.skipped != 0) {
+      throw const FormatException('Cloud sync contains invalid records');
+    }
+    return data;
+  }
+
+  static BackupData parse(String raw, {bool allowEmpty = false}) {
     dynamic decoded;
     try {
       decoded = json.decode(raw);
@@ -364,7 +393,7 @@ class BackupService {
       cleared: _stamps(root['cleared']),
     );
 
-    if (data.isEmpty && data.deleted.isEmpty) {
+    if (!allowEmpty && data.isEmpty && data.deleted.isEmpty) {
       throw Exception('No habits found in that file');
     }
     return data;

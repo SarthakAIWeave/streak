@@ -8,7 +8,6 @@ import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:streak/services/backup_service.dart';
 import 'package:streak/services/cloud_sync_config.dart';
-import 'package:streak/services/cloud_sync_envelope.dart';
 import 'package:streak/services/cloud_sync_encryption.dart';
 import 'package:streak/core/database/local_store.dart';
 import 'package:streak/services/folder_sync.dart';
@@ -20,6 +19,8 @@ class GoogleDriveSync {
   static const fileName = 'streak-sync.json';
   static const encryptionReady = true;
   static var _initialized = false;
+  static Future<void>? _initializing;
+  static bool _restoreAttempted = false;
   static GoogleSignInAccount? _account;
   static Timer? _autoTimer;
   static Timer? _periodicTimer;
@@ -33,8 +34,15 @@ class GoogleDriveSync {
     if (account == null) stopAutoSync();
   }
 
-  static Future<void> initialize() async {
-    if (_initialized) return;
+  static Future<void> initialize() =>
+      _initializing ??= _initialize().catchError(
+        (Object error, StackTrace stack) {
+          _initializing = null;
+          Error.throwWithStackTrace(error, stack);
+        },
+      );
+
+  static Future<void> _initialize() async {
     if (!CloudSyncConfig.googleDriveConfigured) {
       throw StateError('Google Drive sign-in is not configured in this build.');
     }
@@ -44,6 +52,22 @@ class GoogleDriveSync {
       serverClientId: kIsWeb ? null : CloudSyncConfig.googleWebClientId,
     );
     _initialized = true;
+  }
+
+  static Future<void> restoreSession() async {
+    await initialize();
+    if (!_initialized || _restoreAttempted || _account != null) return;
+    _restoreAttempted = true;
+    try {
+      final attempt = GoogleSignIn.instance.attemptLightweightAuthentication();
+      if (attempt != null) {
+        final restored = await attempt;
+        if (restored != null) setAccount(restored);
+      }
+    } catch (_) {
+      _restoreAttempted = false;
+      rethrow;
+    }
   }
 
   static Future<GoogleSignInAccount?> signIn() async {
@@ -179,8 +203,7 @@ class GoogleDriveSync {
     final raw = await download();
     if (raw == null) return 0;
     final decrypted = await CloudSyncEncryption.decrypt(raw, passphrase);
-    final decoded = CloudSyncEnvelope.decode(decrypted);
-    return FolderSync.absorb(BackupService.parse(json.encode(decoded)));
+    return FolderSync.absorb(BackupService.parseCloud(decrypted));
   }
 
   static Future<String?> savedPassphrase() =>

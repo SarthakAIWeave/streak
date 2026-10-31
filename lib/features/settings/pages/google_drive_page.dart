@@ -16,8 +16,10 @@ class GoogleDrivePage extends StatefulWidget {
 }
 
 class _GoogleDrivePageState extends State<GoogleDrivePage> {
-  StreamSubscription<Object?>? _events;
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _events;
   bool _busy = false;
+  bool _restoring =
+      CloudSyncConfig.googleDriveConfigured && GoogleDriveSync.account == null;
   String? _message;
 
   GoogleSignInAccount? get _user => GoogleDriveSync.account;
@@ -25,13 +27,22 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
   @override
   void initState() {
     super.initState();
-    _events = GoogleSignIn.instance.authenticationEvents.listen((event) {
-      final dynamic value = event;
-      try {
-        GoogleDriveSync.setAccount(value.user as GoogleSignInAccount?);
-      } catch (_) {}
-      if (mounted) setState(() {});
-    });
+    _events = GoogleSignIn.instance.authenticationEvents.listen(
+      (event) {
+        switch (event) {
+          case GoogleSignInAuthenticationEventSignIn():
+            GoogleDriveSync.setAccount(event.user);
+          case GoogleSignInAuthenticationEventSignOut():
+            GoogleDriveSync.setAccount(null);
+        }
+        if (mounted) setState(() {});
+      },
+      onError: (Object _) {
+        if (mounted) {
+          setState(() => _message = 'Google sign-in could not be restored.');
+        }
+      },
+    );
     if (CloudSyncConfig.googleDriveConfigured) {
       unawaited(_initialize());
     }
@@ -39,11 +50,13 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
 
   Future<void> _initialize() async {
     try {
-      await GoogleDriveSync.initialize();
+      await GoogleDriveSync.restoreSession();
     } catch (_) {
       if (mounted) {
         setState(() => _message = 'Google sign-in could not be initialized.');
       }
+    } finally {
+      if (mounted) setState(() => _restoring = false);
     }
   }
 
@@ -152,9 +165,13 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                       CloudSyncConfig.googleDriveConfigured &&
                       !kIsWeb)
                     FilledButton.icon(
-                      onPressed: _busy ? null : _connect,
+                      onPressed: _busy || _restoring ? null : _connect,
                       icon: const Icon(Icons.login),
-                      label: const Text('Sign in with Google'),
+                      label: Text(
+                        _restoring
+                            ? 'Restoring sign-in…'
+                            : 'Sign in with Google',
+                      ),
                     ),
                   if (user != null) ...[
                     FilledButton.icon(
