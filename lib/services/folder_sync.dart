@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:universal_io/universal_io.dart';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -13,6 +14,7 @@ class FolderSync {
   static const _prefix = 'streak_backup_';
   static const _seenKey = 'folderSeenAt';
   static const _seenByKey = 'folderSeenBy';
+  static Future<void> _mergeQueue = Future.value();
 
   static bool get isSet =>
       LocalStore.setting('autoBackupFolder', '').isNotEmpty;
@@ -120,15 +122,27 @@ class FolderSync {
       ..sort((a, b) => _name(b).compareTo(_name(a)));
   }
 
-  static Future<int> _absorb(BackupData data) =>
-      LocalStore.quietly(() => _take(data));
+  static Future<int> _absorb(BackupData data, {bool applyDeletions = false}) async {
+    final previous = _mergeQueue;
+    final done = Completer<void>();
+    _mergeQueue = done.future;
+    try {
+      await previous;
+      return await LocalStore.quietly(
+        () => _take(data, applyDeletions: applyDeletions),
+      );
+    } finally {
+      done.complete();
+    }
+  }
 
   /// Applies a decoded cloud snapshot using the same merge engine as folder sync.
-  static Future<int> absorb(BackupData data) => _absorb(data);
+  static Future<int> absorb(BackupData data, {bool applyDeletions = false}) =>
+      _absorb(data, applyDeletions: applyDeletions);
 
-  static Future<int> _take(BackupData data) async {
+  static Future<int> _take(BackupData data, {bool applyDeletions = false}) async {
     final stamps = data.changes;
-    var brought = LocalStore.setting('autoSync', false)
+    var brought = (applyDeletions || LocalStore.setting('autoSync', false))
         ? await _forget(data.deleted)
         : 0;
 

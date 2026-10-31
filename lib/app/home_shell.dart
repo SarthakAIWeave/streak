@@ -35,6 +35,7 @@ import 'package:streak/features/statistics/pages/statistics_page.dart';
 import 'package:streak/features/todos/pages/todos_page.dart';
 import 'package:streak/features/todos/state/todos_controller.dart';
 import 'package:streak/services/auto_sync.dart';
+import 'package:streak/services/google_drive_sync.dart';
 import 'package:streak/services/health_steps.dart';
 import 'package:streak/services/home_widget_service.dart';
 import 'package:streak/services/widget_action_service.dart';
@@ -96,6 +97,12 @@ class _HomeShellState extends State<HomeShell>
       },
       save: () => settings.runAutoBackup(force: true, archive: false),
     );
+    GoogleDriveSync.onRemoteMerged = () async {
+      if (mounted) await SettingsActions.reloadAll(context);
+    };
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(GoogleDriveSync.resume());
+    });
   }
 
   void _waitForNextDay() {
@@ -115,6 +122,8 @@ class _HomeShellState extends State<HomeShell>
   void dispose() {
     _nextDay?.cancel();
     AutoSync.stop();
+    GoogleDriveSync.stopAutoSync();
+    GoogleDriveSync.onRemoteMerged = null;
     _swap.dispose();
     _compact.dispose();
     _toSettings.removeListener(_openSettings);
@@ -241,6 +250,7 @@ class _HomeShellState extends State<HomeShell>
       drainFocusActions();
       context.read<SettingsController>().runAutoBackup();
       AutoSync.resume();
+      unawaited(GoogleDriveSync.resume());
       _waitForNextDay();
     }
   }

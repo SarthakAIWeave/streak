@@ -5,6 +5,8 @@ import 'package:google_sign_in_platform_interface/google_sign_in_platform_interf
 import 'package:streak/services/cloud_sync_config.dart';
 import 'package:streak/services/google_drive_sync.dart';
 
+import 'support/app_harness.dart';
+
 class FakeGoogleSignIn extends GoogleSignInPlatform {
   int initializations = 0;
   int restores = 0;
@@ -34,6 +36,7 @@ class FakeGoogleSignIn extends GoogleSignInPlatform {
 }
 
 void main() {
+  useEmptyStore();
   test(
     'restores a session once and keeps an explicit sign-out',
     () async {

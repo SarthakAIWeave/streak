@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:streak/core/database/local_store.dart';
 import 'package:streak/services/google_drive_sign_in_button.dart';
 import 'package:streak/services/google_drive_sync.dart';
 import 'package:streak/services/cloud_sync_config.dart';
@@ -18,6 +20,7 @@ class GoogleDrivePage extends StatefulWidget {
 class _GoogleDrivePageState extends State<GoogleDrivePage> {
   StreamSubscription<GoogleSignInAuthenticationEvent>? _events;
   bool _busy = false;
+  bool _wrongPassphrase = false;
   bool _restoring =
       CloudSyncConfig.googleDriveConfigured && GoogleDriveSync.account == null;
   String? _message;
@@ -27,6 +30,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
   @override
   void initState() {
     super.initState();
+    GoogleDriveSync.status.addListener(_onSyncStatus);
     _events = GoogleSignIn.instance.authenticationEvents.listen(
       (event) {
         switch (event) {
@@ -37,9 +41,18 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
         }
         if (mounted) setState(() {});
       },
-      onError: (Object _) {
+      onError: (Object error) {
+        if (error is GoogleSignInException &&
+            (error.code == GoogleSignInExceptionCode.canceled ||
+                error.code == GoogleSignInExceptionCode.interrupted ||
+                error.code == GoogleSignInExceptionCode.uiUnavailable)) {
+          return;
+        }
         if (mounted) {
-          setState(() => _message = 'Google sign-in could not be restored.');
+          setState(
+            () => _message =
+                'Could not restore Google sign-in. Please sign in again.',
+          );
         }
       },
     );
@@ -48,12 +61,29 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
     }
   }
 
+  void _onSyncStatus() {
+    if (mounted && !_busy && GoogleDriveSync.status.value == 'Syncing…') {
+      setState(() => _message = null);
+    }
+  }
+
   Future<void> _initialize() async {
     try {
       await GoogleDriveSync.restoreSession();
+    } on GoogleSignInException catch (error) {
+      if (mounted) {
+        setState(
+          () => _message =
+              'Could not restore Google sign-in '
+              '(${error.code.name}). Please sign in again.',
+        );
+      }
     } catch (_) {
       if (mounted) {
-        setState(() => _message = 'Google sign-in could not be initialized.');
+        setState(
+          () => _message =
+              'Could not restore Google sign-in. Please sign in again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _restoring = false);
@@ -62,6 +92,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
 
   @override
   void dispose() {
+    GoogleDriveSync.status.removeListener(_onSyncStatus);
     _events?.cancel();
     super.dispose();
   }
@@ -74,9 +105,11 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
     });
   }
 
-  Future<void> _sync() async {
+  Future<void> _sync({bool changePassphrase = false}) async {
     await _run(() async {
-      var passphrase = await GoogleDriveSync.savedPassphrase();
+      var passphrase = changePassphrase
+          ? null
+          : await GoogleDriveSync.savedPassphrase();
       var newPassphrase = false;
       if (passphrase == null && mounted) {
         passphrase = await _askPassphrase(context);
@@ -84,12 +117,16 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
         newPassphrase = true;
       }
       if (passphrase == null) return;
-      final merged = await GoogleDriveSync.pullAndMerge(passphrase: passphrase);
-      await GoogleDriveSync.upload(passphrase: passphrase);
-      if (newPassphrase) await GoogleDriveSync.savePassphrase(passphrase);
+      await LocalStore.writeSetting('driveSyncTracking', true);
       GoogleDriveSync.startAutoSync();
+      final merged = await GoogleDriveSync.sync(passphrase: passphrase);
+      if (newPassphrase) await GoogleDriveSync.savePassphrase(passphrase);
+      await LocalStore.writeSetting('driveSyncEnabled', true);
       if (mounted) {
-        setState(() => _message = 'Sync complete. $merged changes merged.');
+        setState(() {
+          _wrongPassphrase = false;
+          _message = 'Sync complete. $merged changes merged.';
+        });
       }
     });
   }
@@ -116,6 +153,14 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
     });
     try {
       await action();
+    } on SecretBoxAuthenticationError {
+      if (mounted) {
+        setState(() {
+          _wrongPassphrase = true;
+          _message =
+              'Could not unlock the Drive backup. Check the passphrase and try again.';
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _message = 'Sync could not complete: $error');
     } finally {
@@ -177,7 +222,7 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                     FilledButton.icon(
                       onPressed: _busy || !GoogleDriveSync.encryptionReady
                           ? null
-                          : _sync,
+                          : () => _sync(),
                       icon: const Icon(LucideIcons.refreshCw),
                       label: Text(
                         _busy
@@ -191,6 +236,20 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                       onPressed: _busy ? null : _disconnect,
                       icon: const Icon(Icons.logout),
                       label: const Text('Disconnect Google Drive'),
+                    ),
+                    if (_wrongPassphrase)
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _sync(changePassphrase: true),
+                        child: const Text('Try another passphrase'),
+                      ),
+                    ValueListenableBuilder<String?>(
+                      valueListenable: GoogleDriveSync.status,
+                      builder: (context, status, _) =>
+                          status == null || _message != null
+                          ? const SizedBox.shrink()
+                          : Text(status),
                     ),
                   ],
                   if (_message case final message?) ...[

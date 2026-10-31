@@ -73,7 +73,10 @@ class LocalStore {
 
   static int? clearedAt(String id) => cleared[id];
 
-  static bool get _tracking => setting('autoBackupFolder', '').isNotEmpty;
+  static bool get _tracking =>
+      setting('autoBackupFolder', '').isNotEmpty ||
+      setting('driveSyncTracking', false) ||
+      setting('driveSyncEnabled', false);
 
   static bool get _quiet => Zone.current[_quietZone] == true;
 
