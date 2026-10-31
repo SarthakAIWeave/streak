@@ -23,7 +23,7 @@ env:
 
 jobs:
   build:
-    name: Build split APKs
+    name: Build APKs
     runs-on: ubuntu-latest
     # Only as a pull request check. A tagged run goes straight to release, which
     # builds and signs on its own, so nothing is compiled twice.
@@ -58,9 +58,12 @@ jobs:
       - name: Test
         run: flutter test
 
-      # ABI splits keep each APK small (~15-20 MB) instead of one ~58 MB fat APK.
-      - name: Build split APKs
-        run: flutter build apk --release --split-per-abi
+      - name: Build APKs
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          flutter build apk --release --split-per-abi --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
+          flutter build apk --release --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
 
       - name: Rename APKs
         run: |
@@ -68,6 +71,7 @@ jobs:
           mv app-arm64-v8a-release.apk     Streak-arm64-v8a.apk
           mv app-armeabi-v7a-release.apk   Streak-armeabi-v7a.apk
           mv app-x86_64-release.apk        Streak-x86_64.apk
+          mv app-release.apk               Streak-universal.apk
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -92,6 +96,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate release configuration
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          set -eu
+          version=$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)
+          if [ -z "$version" ] || [ "$RELEASE_TAG" != "v$version" ]; then
+            echo 'Release tag must match pubspec.yaml version (for example v2.5.0).' >&2
+            exit 1
+          fi
+          if [ -z "$GOOGLE_WEB_CLIENT_ID" ]; then
+            echo 'Set the GOOGLE_WEB_CLIENT_ID Actions variable before releasing.' >&2
+            exit 1
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -121,8 +141,7 @@ jobs:
       - name: Patch jni build-id
         run: sed -i -e 's/-Wl,/-Wl,--build-id=none,/' "$PUB_CACHE"/hosted/pub.dev/jni-*/src/CMakeLists.txt
 
-      # Sign the release APKs with the release keystore (kept in GitHub Secrets)
-      # so the published binaries match F-Droid's reproducible build.
+      # Sign release APKs with the keystore stored in GitHub Secrets.
       - name: Set up signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -130,7 +149,14 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/streak-release.jks
+          set -eu
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            if [ -z "${!name}" ]; then
+              echo "Missing signing secret: $name" >&2
+              exit 1
+            fi
+          done
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/streak-release.jks
           cat > android/key.properties <<EOF
           storePassword=$KEYSTORE_PASSWORD
           keyPassword=$KEY_PASSWORD
@@ -138,13 +164,13 @@ jobs:
           storeFile=streak-release.jks
           EOF
 
-      # Reproducible build: version name AND code come entirely from pubspec.yaml
-      # (1.1.0+2), exactly like F-Droid builds it. Do NOT pass --build-name or
-      # --build-number here, or the APK won't match F-Droid's.
-      # --split-debug-info moves the path-laden debug symbols out of libapp.so so it
-      # builds deterministically. F-Droid uses the same flag.
-      - name: Build split APKs
-        run: flutter build apk --release --split-per-abi --split-debug-info=build/symbols
+      # Reproducible builds require F-Droid to use the same Dart define as well.
+      - name: Build APKs
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          flutter build apk --release --split-per-abi --split-debug-info=build/symbols --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
+          flutter build apk --release --split-debug-info=build/symbols --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
 
       - name: Rename APKs
         run: |
@@ -152,6 +178,7 @@ jobs:
           mv app-arm64-v8a-release.apk     Streak-arm64-v8a.apk
           mv app-armeabi-v7a-release.apk   Streak-armeabi-v7a.apk
           mv app-x86_64-release.apk        Streak-x86_64.apk
+          mv app-release.apk               Streak-universal.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -163,6 +190,7 @@ jobs:
             build/app/outputs/flutter-apk/Streak-arm64-v8a.apk
             build/app/outputs/flutter-apk/Streak-armeabi-v7a.apk
             build/app/outputs/flutter-apk/Streak-x86_64.apk
+            build/app/outputs/flutter-apk/Streak-universal.apk
 
   windows:
     name: Build Windows
@@ -198,9 +226,11 @@ jobs:
         run: choco install innosetup --version=6.7.1 -y --no-progress
 
       - name: Build the installer
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe").FullName
-          & $iscc "/DAppVersion=$('${{ inputs.tag }}'.TrimStart('v'))" windows\installer.iss
+          & $iscc "/DAppVersion=$($env:RELEASE_TAG.TrimStart('v'))" windows\installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Add it to the release
