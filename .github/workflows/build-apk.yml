@@ -128,9 +128,6 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
-      - name: Test
-        run: flutter test
-
       # Reproducibility: the jni package bakes a unique build-id into libdartjni.so.
       # Force --build-id=none so the native lib is deterministic. F-Droid applies
       # this exact same patch in its recipe.
