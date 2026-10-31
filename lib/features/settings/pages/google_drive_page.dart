@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:streak/services/google_drive_sign_in_button.dart';
 import 'package:streak/services/google_drive_sync.dart';
+import 'package:streak/services/cloud_sync_config.dart';
 
 class GoogleDrivePage extends StatefulWidget {
   const GoogleDrivePage({super.key});
@@ -31,7 +32,19 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
       } catch (_) {}
       if (mounted) setState(() {});
     });
-    unawaited(GoogleDriveSync.initialize());
+    if (CloudSyncConfig.googleDriveConfigured) {
+      unawaited(_initialize());
+    }
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await GoogleDriveSync.initialize();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Google sign-in could not be initialized.');
+      }
+    }
   }
 
   @override
@@ -69,43 +82,10 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
   }
 
   Future<String?> _askPassphrase(BuildContext context) async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
+    return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Protect Drive sync'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          obscureText: true,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            labelText: 'Sync passphrase',
-            helperText: 'Use the same passphrase on every device.',
-          ),
-          onSubmitted: (_) {
-            final value = controller.text.trim();
-            if (value.length >= 12) Navigator.of(context).pop(value);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.length < 12) return;
-              Navigator.of(context).pop(value);
-            },
-            child: const Text('Use passphrase'),
-          ),
-        ],
-      ),
+      builder: (_) => const DrivePassphraseDialog(),
     );
-    controller.dispose();
-    return value;
   }
 
   Future<void> _disconnect() async {
@@ -157,12 +137,20 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
                         : user.email,
                   ),
                   const SizedBox(height: 20),
-                  if (user == null && kIsWeb)
+                  if (user == null && !CloudSyncConfig.googleDriveConfigured)
+                    const Text(
+                      'Google Drive sign-in is not configured in this build.',
+                    ),
+                  if (user == null &&
+                      CloudSyncConfig.googleDriveConfigured &&
+                      kIsWeb)
                     SizedBox(
                       height: 44,
                       child: googleDriveSignInButton(),
                     ),
-                  if (user == null && !kIsWeb)
+                  if (user == null &&
+                      CloudSyncConfig.googleDriveConfigured &&
+                      !kIsWeb)
                     FilledButton.icon(
                       onPressed: _busy ? null : _connect,
                       icon: const Icon(Icons.login),
@@ -207,4 +195,57 @@ class _GoogleDrivePageState extends State<GoogleDrivePage> {
       ),
     );
   }
+}
+
+class DrivePassphraseDialog extends StatefulWidget {
+  const DrivePassphraseDialog({super.key});
+
+  @override
+  State<DrivePassphraseDialog> createState() => _DrivePassphraseDialogState();
+}
+
+class _DrivePassphraseDialogState extends State<DrivePassphraseDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) {
+      Navigator.of(context).pop(_controller.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Protect Drive sync'),
+    content: Form(
+      key: _formKey,
+      child: TextFormField(
+        controller: _controller,
+        autofocus: true,
+        obscureText: true,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(
+          labelText: 'Sync passphrase',
+          helperText: 'Use the same passphrase on every device.',
+        ),
+        validator: (value) => (value?.trim().length ?? 0) < 12
+            ? 'Use at least 12 characters.'
+            : null,
+        onFieldSubmitted: (_) => _submit(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Use passphrase')),
+    ],
+  );
 }

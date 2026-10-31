@@ -35,6 +35,9 @@ class GoogleDriveSync {
 
   static Future<void> initialize() async {
     if (_initialized) return;
+    if (!CloudSyncConfig.googleDriveConfigured) {
+      throw StateError('Google Drive sign-in is not configured in this build.');
+    }
     if (!kIsWeb && !GoogleSignIn.instance.supportsAuthenticate()) return;
     await GoogleSignIn.instance.initialize(
       clientId: kIsWeb ? CloudSyncConfig.googleWebClientId : null,
@@ -63,7 +66,10 @@ class GoogleDriveSync {
     if (_autoStarted) return;
     _autoStarted = true;
     LocalStore.addChangeListener(_changed);
-    _periodicTimer = Timer.periodic(const Duration(minutes: 2), (_) => _runAuto());
+    _periodicTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => _runAuto(),
+    );
   }
 
   static void stopAutoSync() {
