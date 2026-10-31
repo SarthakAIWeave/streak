@@ -34,6 +34,14 @@ subprojects {
 }
 
 subprojects {
+    if (name == "home_widget") {
+        configurations.configureEach {
+            resolutionStrategy.force("androidx.glance:glance-appwidget:1.1.1")
+        }
+    }
+}
+
+subprojects {
     val alignJvm: Project.() -> Unit = {
         extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)
             ?.compileOptions {
